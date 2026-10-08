@@ -45,7 +45,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # في القناة: اسم مجرد عادي لحفظ الخصوصية
+    # في القناة: اسم مجرد فقط لحفظ الخصوصية
     card_text = (
         f"📌 طلب تبادل مهارة جديد #{task_id}\n\n"
         f"👤 الطالب: {name}\n"
@@ -73,7 +73,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         save_data(data)
 
         await update.message.reply_text("✅ تم نشر طلبك في القناة بنجاح! ستصلك رسالة خاصة هنا فور تطوع أحد الزملاء لمساعدتك.")
-    except Exception as e:
+    except Exception:
         await update.message.reply_text("عذراً، حدث خطأ أثناء نشر الطلب.")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,7 +99,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         task["volunteer_name"] = vol_name
         save_data(data)
 
-        # تحديث القناة باسم المتطوع فقط دون روابط لحفظ الخصوصية
+        # تحديث القناة باسم المتطوع كنص عادي بدون رابط
         keyboard = [
             [InlineKeyboardButton(f"⏳ قيد التنفيذ بواسطة {vol_name}", callback_data="none")]
         ]
@@ -112,35 +112,35 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(new_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-        # إرسال رابط مباشر للطالب في الخاص (يعمل بنقرة واحدة حتى لو لم يكن للمتطوع يوزرنيم)
+        # زر التأكيد للطالب
         student_keyboard = [
             [InlineKeyboardButton("✅ تم استلام الخدمة واحتساب الوقت", callback_data=f"done_{task_id}")]
         ]
-        vol_mention = f'<a href="tg://user?id={volunteer.id}">{vol_name}</a>'
+
+        # إرسال رابط المتطوع للطالب في الخاص بنفس طريقة الماركداون التي كانت تعمل في القناة
         try:
             await context.bot.send_message(
                 chat_id=task["requester_id"],
                 text=(
-                    f"🎉 تقدم المتطوع {vol_mention} لمساعدتك في طلبك #{task_id}!\n\n"
-                    f"👉 اضغط هنا لفتح محادثة المتطوع مباشرة: {vol_mention}\n\n"
+                    f"🎉 تقدم المتطوع [{vol_name}](tg://user?id={volunteer.id}) لمساعدتك في طلبك #{task_id}!\n\n"
+                    f"💬 [اضغط هنا لفتح محادثة {vol_name} مباشرة](tg://user?id={volunteer.id})\n\n"
                     "وبعد الانتهاء من تبادل المهارة، اضغط الزر أدناه لتوثيق الوقت:"
                 ),
-                parse_mode="HTML",
+                parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup(student_keyboard)
             )
         except Exception:
             pass
 
-        # إرسال رابط مباشر للمتطوع في الخاص للتواصل مع الطالب بنقرة واحدة
-        req_mention = f'<a href="tg://user?id={task["requester_id"]}">{task["requester_name"]}</a>'
+        # إرسال رابط الطالب للمتطوع في الخاص بنفس الطريقة
         try:
             await context.bot.send_message(
                 chat_id=volunteer.id,
                 text=(
                     f"✨ شكراً لمبادرتك بمساعدة زميلك في طلب #{task_id}!\n\n"
-                    f"👉 اضغط هنا لفتح محادثة صاحب الطلب مباشرة: {req_mention}"
+                    f"💬 [اضغط هنا لفتح محادثة {task['requester_name']} مباشرة](tg://user?id={task['requester_id']})"
                 ),
-                parse_mode="HTML"
+                parse_mode="Markdown"
             )
         except Exception:
             pass
@@ -156,7 +156,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["users"][v_name] = round(data.get("users", {}).get(v_name, 0.0) + 0.5, 1)
         save_data(data)
 
-        # تحديث القناة عند الإنجاز
+        # تحديث القناة عند الاكتمال
         completed_text = (
             f"📌 طلب تبادل مهارة #{task_id}\n\n"
             f"👤 الطالب: {task['requester_name']}\n"
