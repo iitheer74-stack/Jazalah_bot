@@ -25,8 +25,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         await update.message.reply_text(
             "أهلاً بك في منصة جزالة لتبادل الوقت والمهارات! ⏳✨\n\n"
-            "اكتب تفاصيل طلبك مباشرة في هذه المحادثة (مثال: أحتاج شرح اختبار تاء في الإحصاء).\n"
-            "وسيقوم البوت بنشر بطاقتك تلقائياً في القناة مع الحفاظ التام على خصوصيتك."
+            "اكتب تفاصيل طلبك مباشرة في هذه المحادثة (مثال: أحتاج شرح E).\n"
+            "وسيقوم البوت بنشر بطاقتك تلقائياً في القناة العامة."
         )
 
 async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,10 +45,10 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # في القناة: اسم مجرد فقط لحفظ الخصوصية
+    # يظهر اسم الطالب كرابط أزرق مباشر في القناة
     card_text = (
-        f"📌 طلب تبادل مهارة جديد #{task_id}\n\n"
-        f"👤 الطالب: {name}\n"
+        f"📌 طلب تبادل مهارة #{task_id}\n\n"
+        f"👤 الطالب: [{name}](tg://user?id={user.id})\n"
         f"📝 المطلوب: {text}\n"
         f"⏱ الوقت المقدر: نصف ساعة (30 دقيقة)\n"
         f"🔘 الحالة: 🟢 متاح للتقديم"
@@ -58,6 +58,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         sent_msg = await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
             text=card_text,
+            parse_mode="Markdown",
             reply_markup=reply_markup
         )
 
@@ -74,7 +75,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
 
         await update.message.reply_text("✅ تم نشر طلبك في القناة بنجاح! ستصلك رسالة خاصة هنا فور تطوع أحد الزملاء لمساعدتك.")
     except Exception:
-        await update.message.reply_text("عذراً، حدث خطأ أثناء نشر الطلب.")
+        await update.message.reply_text("عذراً، حدث خطأ أثناء نشر الطلب. يرجى المحاولة لاحقاً.")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -99,48 +100,36 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         task["volunteer_name"] = vol_name
         save_data(data)
 
-        # تحديث القناة باسم المتطوع كنص عادي بدون رابط
+        # يظهر اسم المتطوع واسم الطالب باللون الأزرق في القناة
         keyboard = [
             [InlineKeyboardButton(f"⏳ قيد التنفيذ بواسطة {vol_name}", callback_data="none")]
         ]
         new_text = (
             f"📌 طلب تبادل مهارة #{task_id}\n\n"
-            f"👤 الطالب: {task['requester_name']}\n"
+            f"👤 الطالب: [{task['requester_name']}](tg://user?id={task['requester_id']})\n"
             f"📝 المطلوب: {task['details']}\n"
             f"⏱ الوقت المقدر: نصف ساعة (30 دقيقة)\n"
-            f"🔘 الحالة: ⏳ قيد التنفيذ بواسطة {vol_name}"
+            f"🔘 الحالة: ⏳ قيد التنفيذ بواسطة [{vol_name}](tg://user?id={volunteer.id})"
         )
-        await query.edit_message_text(new_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(
+            text=new_text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
-        # زر التأكيد للطالب
+        # إرسال زر التأكيد إلى الطالب في الخاص
         student_keyboard = [
             [InlineKeyboardButton("✅ تم استلام الخدمة واحتساب الوقت", callback_data=f"done_{task_id}")]
         ]
-
-        # إرسال رابط المتطوع للطالب في الخاص بنفس طريقة الماركداون التي كانت تعمل في القناة
         try:
             await context.bot.send_message(
                 chat_id=task["requester_id"],
                 text=(
                     f"🎉 تقدم المتطوع [{vol_name}](tg://user?id={volunteer.id}) لمساعدتك في طلبك #{task_id}!\n\n"
-                    f"💬 [اضغط هنا لفتح محادثة {vol_name} مباشرة](tg://user?id={volunteer.id})\n\n"
-                    "وبعد الانتهاء من تبادل المهارة، اضغط الزر أدناه لتوثيق الوقت:"
+                    "بعد الانتهاء من تبادل المهارة، اضغط الزر أدناه لاحتساب الوقت:"
                 ),
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup(student_keyboard)
-            )
-        except Exception:
-            pass
-
-        # إرسال رابط الطالب للمتطوع في الخاص بنفس الطريقة
-        try:
-            await context.bot.send_message(
-                chat_id=volunteer.id,
-                text=(
-                    f"✨ شكراً لمبادرتك بمساعدة زميلك في طلب #{task_id}!\n\n"
-                    f"💬 [اضغط هنا لفتح محادثة {task['requester_name']} مباشرة](tg://user?id={task['requester_id']})"
-                ),
-                parse_mode="Markdown"
             )
         except Exception:
             pass
@@ -156,18 +145,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data["users"][v_name] = round(data.get("users", {}).get(v_name, 0.0) + 0.5, 1)
         save_data(data)
 
-        # تحديث القناة عند الاكتمال
         completed_text = (
             f"📌 طلب تبادل مهارة #{task_id}\n\n"
-            f"👤 الطالب: {task['requester_name']}\n"
+            f"👤 الطالب: [{task['requester_name']}](tg://user?id={task['requester_id']})\n"
             f"📝 المطلوب: {task['details']}\n"
             f"🔘 الحالة: 🏁 مكتملة وموثقة بنجاح ✨\n"
-            f"🌟 المتطوع: {v_name} (+0.5 ساعة)"
+            f"🌟 المتطوع: [{v_name}](tg://user?id={task['volunteer_id']}) (+0.5 ساعة)"
         )
         await context.bot.edit_message_text(
             chat_id=GROUP_CHAT_ID,
             message_id=task["message_id"],
-            text=completed_text
+            text=completed_text,
+            parse_mode="Markdown"
         )
         await query.edit_message_text("✨ شكراً لك! تم توثيق النصف ساعة وإضافتها إلى رصيد المتطوع بنجاح.")
 
