@@ -1,11 +1,29 @@
 import json
 import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
+# --- خادم ويب بسيط لإبقاء الخدمة نشطة على Render ---
+class SimpleWebServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain; charset=utf-8')
+        self.end_headers()
+        self.wfile.write("Jazalah Bot is active and running!".encode('utf-8'))
+
+    def log_message(self, format, *args):
+        return  # لمنع امتلاء السجلات برسائل الفحص
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleWebServer)
+    server.serve_forever()
+
+# --- إعدادات البوت والبيانات ---
 BOT_TOKEN = "8868617949:AAFHkBSU-WD9ZXHzEFnj4lvtrOVGHeMpqRs"
 GROUP_CHAT_ID = -1004382101606
-
 STATS_FILE = "stats.json"
 
 def load_data():
@@ -45,7 +63,6 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # يظهر اسم الطالب كرابط أزرق مباشر في القناة
     card_text = (
         f"📌 طلب تبادل مهارة #{task_id}\n\n"
         f"👤 الطالب: [{name}](tg://user?id={user.id})\n"
@@ -100,7 +117,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         task["volunteer_name"] = vol_name
         save_data(data)
 
-        # يظهر اسم المتطوع واسم الطالب باللون الأزرق في القناة
         keyboard = [
             [InlineKeyboardButton(f"⏳ قيد التنفيذ بواسطة {vol_name}", callback_data="none")]
         ]
@@ -117,7 +133,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        # إرسال زر التأكيد إلى الطالب في الخاص
         student_keyboard = [
             [InlineKeyboardButton("✅ تم استلام الخدمة واحتساب الوقت", callback_data=f"done_{task_id}")]
         ]
@@ -174,6 +189,10 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(report)
 
 def main():
+    # تشغيل خادم الويب في مسار مستقل (Thread) لمنع السكون
+    t = threading.Thread(target=run_web_server, daemon=True)
+    t.start()
+
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats_command))
